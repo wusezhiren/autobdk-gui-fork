@@ -95,14 +95,40 @@ export class CheckinDialog {
       return;
     }
 
-    const itemsHtml = items
+    // 按日期分组，请假等整天无需补签的日期可以一键跳过
+    const groups: { date: string; indexes: number[] }[] = [];
+    items.forEach((item, index) => {
+      const last = groups[groups.length - 1];
+      if (last && last.date === item.date) {
+        last.indexes.push(index);
+      } else {
+        groups.push({ date: item.date, indexes: [index] });
+      }
+    });
+
+    const groupsHtml = groups
       .map(
-        (item) => `
-      <div class="checkin-item status-pending">
-        <div class="checkin-item-icon">${iconSvg('pause-circle')}</div>
-        <div class="checkin-item-type">${AttendanceClockType[item.clockType]}:</div>
-        <div class="checkin-item-time">${escapeHtml(item.date)} ${escapeHtml(item.time)}</div>
-        <div class="checkin-item-status">等待中</div>
+        (group, groupIndex) => `
+      <div class="checkin-day">
+        <label class="checkin-day-header">
+          <input type="checkbox" class="checkin-check" data-day="${groupIndex}" />
+          <span class="checkin-day-date">${escapeHtml(group.date)}</span>
+        </label>
+        ${group.indexes
+          .map((index) => {
+            const item = items[index];
+            return `
+          <label class="checkin-item status-pending" data-index="${index}">
+            <div class="checkin-item-icon">
+              <input type="checkbox" class="checkin-check" data-index="${index}" />
+            </div>
+            <div class="checkin-item-type">${AttendanceClockType[item.clockType]}:</div>
+            <div class="checkin-item-time">${escapeHtml(item.date)} ${escapeHtml(item.time)}</div>
+            <div class="checkin-item-status"></div>
+          </label>
+        `;
+          })
+          .join('')}
       </div>
     `
       )
@@ -110,9 +136,16 @@ export class CheckinDialog {
 
     this.content.innerHTML = `
       <div class="checkin-preview">
-        <div class="checkin-summary">共 ${items.length} 条记录需要补签</div>
+        <div class="checkin-summary"></div>
+        <div class="checkin-toolbar">
+          <label class="checkin-toolbar-all">
+            <input type="checkbox" class="checkin-check" id="checkin-select-all" />
+            <span>全选</span>
+          </label>
+          <span class="checkin-toolbar-hint">请假等不能补卡的日期，取消勾选即可跳过</span>
+        </div>
         <div class="checkin-preview-list">
-          ${itemsHtml}
+          ${groupsHtml}
         </div>
       </div>
       <div class="checkin-actions">
@@ -121,9 +154,70 @@ export class CheckinDialog {
       </div>
     `;
 
-    // 添加事件监听器
+    const summaryEl = this.content.querySelector('.checkin-summary');
+    const selectAll = this.content.querySelector<HTMLInputElement>('#checkin-select-all');
     const cancelBtn = document.getElementById('checkin-cancel-btn');
-    const confirmBtn = document.getElementById('checkin-confirm-btn');
+    const confirmBtn = document.getElementById('checkin-confirm-btn') as HTMLButtonElement | null;
+
+    const setCheckState = (input: HTMLInputElement | null, indexes: number[]): void => {
+      if (!input) return;
+      const selectedCount = indexes.filter((i) => items[i].selected).length;
+      input.checked = selectedCount === indexes.length;
+      input.indeterminate = selectedCount > 0 && selectedCount < indexes.length;
+    };
+
+    // 根据 items[].selected 同步所有勾选框、行样式、统计和确认按钮
+    const sync = (): void => {
+      items.forEach((item, index) => {
+        const row = this.content.querySelector<HTMLElement>(`.checkin-item[data-index="${index}"]`);
+        const input = row?.querySelector<HTMLInputElement>('input');
+        const status = row?.querySelector('.checkin-item-status');
+        if (input) input.checked = item.selected;
+        row?.classList.toggle('is-skipped', !item.selected);
+        if (status) status.textContent = item.selected ? '待补签' : '跳过';
+      });
+
+      groups.forEach((group, groupIndex) => {
+        setCheckState(
+          this.content.querySelector<HTMLInputElement>(`input[data-day="${groupIndex}"]`),
+          group.indexes
+        );
+      });
+      setCheckState(selectAll, items.map((_, i) => i));
+
+      const selectedCount = items.filter((i) => i.selected).length;
+      const skippedCount = items.length - selectedCount;
+      if (summaryEl) {
+        summaryEl.textContent = `共 ${items.length} 条记录需要补签，已选 ${selectedCount} 条${
+          skippedCount > 0 ? `，跳过 ${skippedCount} 条` : ''
+        }`;
+      }
+      if (confirmBtn) {
+        confirmBtn.disabled = selectedCount === 0;
+        confirmBtn.textContent = selectedCount > 0 ? `确认补签 (${selectedCount})` : '确认补签';
+      }
+    };
+
+    this.content.querySelector('.checkin-preview')?.addEventListener('change', (event) => {
+      const input = event.target as HTMLInputElement;
+      if (!input.classList.contains('checkin-check')) return;
+
+      let indexes: number[];
+      if (input === selectAll) {
+        indexes = items.map((_, i) => i);
+      } else if (input.dataset.day !== undefined) {
+        indexes = groups[Number(input.dataset.day)]?.indexes ?? [];
+      } else {
+        indexes = [Number(input.dataset.index)];
+      }
+
+      for (const i of indexes) {
+        if (items[i]) items[i].selected = input.checked;
+      }
+      sync();
+    });
+
+    sync();
 
     if (cancelBtn) {
       cancelBtn.addEventListener('click', onCancel);
@@ -215,7 +309,8 @@ export class CheckinDialog {
   showResult(
     items: ApprovalItem[],
     onClose: () => void,
-    onRefresh: () => void
+    onRefresh: () => void,
+    skippedCount = 0
   ): void {
     const successCount = items.filter((i) => i.status === 'success').length;
     const errorCount = items.filter((i) => i.status === 'error').length;
@@ -246,7 +341,7 @@ export class CheckinDialog {
         <div class="checkin-result-summary ${hasErrors ? 'has-errors' : ''}">
           <div class="checkin-result-title">${hasErrors ? `${iconSvg('alert-circle')} 补签完成（有失败）` : `${iconSvg('check-circle')} 补签完成`}</div>
           <div class="checkin-result-stats">
-            成功: ${successCount} 条 | 失败: ${errorCount} 条
+            成功: ${successCount} 条 | 失败: ${errorCount} 条${skippedCount > 0 ? ` | 跳过: ${skippedCount} 条` : ''}
           </div>
         </div>
         ${errorsHtml}

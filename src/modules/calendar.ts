@@ -1,4 +1,5 @@
 import type { AttendanceRecordSummary, IAttendanceRecordList } from '../types';
+import { AttendanceClockType } from '../types';
 import { escapeHtml } from '../utils/dom';
 import { iconSvg } from '../utils/icons';
 

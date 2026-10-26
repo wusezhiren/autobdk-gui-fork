@@ -33,6 +33,7 @@ export interface ApprovalItem {
   rangeId: string;
   timestamp: number; // Unix timestamp
   status: 'pending' | 'processing' | 'success' | 'error';
+  selected: boolean; // 预览时是否勾选提交，取消勾选即跳过（如请假日）
   error?: string;
 }
 

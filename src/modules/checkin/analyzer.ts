@@ -116,6 +116,7 @@ export class AttendanceAnalyzer {
         rangeId: timeBegin.rangeId,
         timestamp: recordTime,
         status: 'pending',
+        selected: true,
       });
     }
 
@@ -138,6 +139,7 @@ export class AttendanceAnalyzer {
         rangeId: timeEnd.rangeId,
         timestamp: recordTime,
         status: 'pending',
+        selected: true,
       });
     }
 

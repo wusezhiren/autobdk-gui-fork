@@ -1463,6 +1463,66 @@ button:focus-visible,
   background: var(--danger);
 }
 
+.checkin-toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-bottom: 12px;
+  padding: 0 4px;
+}
+
+.checkin-toolbar-all,
+.checkin-day-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkin-toolbar-hint {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.checkin-check {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.checkin-day {
+  margin-bottom: 12px;
+}
+
+.checkin-day-header {
+  padding: 4px 4px 8px;
+}
+
+.checkin-day-date {
+  color: var(--ink-muted);
+}
+
+label.checkin-item {
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkin-item.is-skipped {
+  opacity: 0.5;
+}
+
+.checkin-item.is-skipped .checkin-item-time {
+  text-decoration: line-through;
+}
+
 .checkin-summary {
   flex: 0 0 auto;
   padding: 13px 16px;

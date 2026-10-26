@@ -63,31 +63,36 @@ export class CheckinManager {
    * 执行补签流程
    */
   private async executeCheckin(): Promise<void> {
-    if (this.isProcessing || this.items.length === 0) return;
+    // 只提交预览中勾选的项，未勾选的（如请假日）跳过
+    const selectedItems = this.items.filter((item) => item.selected);
+    const skippedCount = this.items.length - selectedItems.length;
+
+    if (this.isProcessing || selectedItems.length === 0) return;
 
     this.isProcessing = true;
 
     // 更新对话框标题和显示
     this.dialog.setTitle('正在补签...');
-    this.dialog.showProgress(this.items);
+    this.dialog.showProgress(selectedItems);
 
     try {
       // 创建执行器并执行
       const executor = new CheckinExecutor(this.csrf);
 
-      await executor.execute(this.items, (index, item) => {
-        this.dialog.updateItem(index, item, this.items);
+      await executor.execute(selectedItems, (index, item) => {
+        this.dialog.updateItem(index, item, selectedItems);
       });
 
       // 显示结果
       this.dialog.setTitle('补签结果');
       this.dialog.showResult(
-        this.items,
+        selectedItems,
         () => this.dialog.hide(),
         async () => {
           this.dialog.hide();
           await this.onRefreshCalendar();
-        }
+        },
+        skippedCount
       );
     } catch (error) {
       console.error('Approval process error:', error);
